@@ -1,0 +1,10 @@
+pandas_datareader
+matplotlib.pyplot
+pandas
+datetime
+urllib.request
+json
+os
+numpy
+tensorflow
+sklearn.preprocessing
