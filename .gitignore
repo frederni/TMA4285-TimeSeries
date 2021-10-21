@@ -1,5 +1,9 @@
 # Dataset
 CBLTCUSD.csv
+CBLTCUSD_testonly
+
+# venv
+TimeSeries
 
 # History files
 .Rhistory
