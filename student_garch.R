@@ -10,7 +10,19 @@ stocks <- na.omit(stocks) # Remove invalid stock prices
 
 for(p in 0:10){
     for(q in 0:10){
-        # TODO Check AIC/BIC for each combination
+        tmp_model = ugarchfit(
+            spec=ugarchspec(
+                variance.model = list(model = "gjrGARCH"),
+                mean.model = list(armaOrder = c(p, q), include.mean = TRUE),
+                distribution.model = "std"
+            ),
+            data=stocks,
+        )
+        print("(p,q)=", p, q)
+        # tmp_model$infocriteria
+        # getMethod("infocriteria", "uGARCHfit")
+        # TODO Fix AIC/BIC testing
+        
     }
 }
 
