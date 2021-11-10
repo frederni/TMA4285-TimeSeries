@@ -13,6 +13,41 @@ Updated_Data <- read_excel("CBLTCUSD_updated.xls",
 #Plotting the data
 plot(Data$observation_date,Data$CBLTCUSD, type = "l", col = "red", xlab = "Years", ylab = "Value")
 
+#Slowly decaying pattern in ACF.We observe the expected exponential decay in the ACF plot of this series. 
+#So, AR(1) has auto-correlation at lags 1, 2, 3, and so on.
+acf(Normal_Time_Series)
+
+#There is a very high first correlation in PACF which implies the existence of trend and it is nonstationarity. 
+#We will consider converting the series to a return series and apply GARCH models.
+pacf(Normal_Time_Series)
+
+ts_log = log(Normal_Time_Series)
+plot(ts_log)
+
+#After applying log transformation the non-stationarity seems to be removed. 
+#But the log of series adjusts for change in variance but the trend still exists. 
+#Hence, we applied differencing of order 1 to the log series to calculate returns of Bitcoin price to removes the trend.
+
+ts_log_diff = diff(ts_log)
+acf(ts_log_diff)
+pacf(ts_log_diff)
+
+ga.11 = garch(ts_log_diff, order = c(1,1), trace = FALSE,na.action = na.pass)
+summary(ga.11)
+#GARCH(1,1) in which all the coefficients are significant, normality is quite bad and has no problem with auto correlation.
+ga.12 = garch(ts_log_diff, order = c(1,2), trace = FALSE,na.action = na.pass)
+summary(ga.12)
+
+ga.22 = garch(ts_log_diff, order = c(2,2), trace = FALSE,na.action = na.pass)
+summary(ga.22)
+
+ga.33 = garch(ts_log_diff, order = c(3,3), trace = FALSE,na.action = na.pass)
+summary(ga.33)
+
+sc.AIC = AIC(ga.11, ga.22, ga.12, ga.33)
+
+
+
 #Theoretically seasonality should not be present in a financial time series as it would mean an arbritrage edge.
 #The time series does not seem to be stationary due to the presence of a trend. 
 #Because of this we cannot apply directly the Box-Jenkins methodology, so we will evaluate if first differences are sufficient to turn the time series stationary.
@@ -23,6 +58,11 @@ plot.ts(Normal_Series_Diffed)
 Normal_Series_Diffed.log <- diff(log(Normal_Time_Series))
 plot.ts(Normal_Series_Diffed.log)
 
+
+# Residuals analysis 
+residual.analysis(ga.11, class="GARCH", start=2)
+
+??residuals.analysis
 #ACF,PACF
 acf(log_model) #old
 acf(Normal_Series_Diffed.log)
@@ -65,3 +105,32 @@ x
 
 Box.test(Normal_Series_Diffed.log, lag = 20, type = "Ljung-Box")
 
+
+
+#ARIMA models 
+Normal_Series_Diffed.log <- diff(log(Normal_Time_Series))
+
+plot(Normal_Series_Diffed.log,type="l")
+
+#Fitting an ARIMA model 
+acf(Normal_Series_Diffed.log)
+pacf(Normal_Series_Diffed.log) #value decrease
+
+library(forecast)
+model_normal <- auto.arima(Normal_Time_Series) #whithout log and diff #ARIMA(1,1,4)
+arima101 = auto.arima(Normal_Series_Diffed.log)
+plot(Normal_Series_Diffed.log)
+summary(Normal_Series_Diffed.log)
+plot(model_normal)
+summary(model_normal) #ARIMA(1,1,4)
+
+Box.test(arima101$residuals,type="Ljung-Box",lag = 12)
+
+res.arima101=arima101$res
+squared.res.arima101=res.arima101^2
+par(mfcol=c(1,1))
+plot(squared.res.arima101,main='Squared Residuals')
+acf.squared101=acf(squared.res.arima511,main='ACF Squared
+                   Residuals',lag.max=100,ylim=c(-0.5,1))
+pacf.squared101=pacf(squared.res.arima511,main='PACF Squared
+                     Residuals',lag.max=100,ylim=c(-0.5,1))
