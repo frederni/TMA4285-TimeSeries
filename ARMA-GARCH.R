@@ -44,8 +44,13 @@ summary(ga.22)
 ga.33 = garch(ts_log_diff, order = c(3,3), trace = FALSE,na.action = na.pass)
 summary(ga.33)
 
-sc.AIC = AIC(ga.11, ga.22, ga.12, ga.33)
+ga.20 = garch(ts_log_diff, order = c(2,0), trace = FALSE,na.action = na.pass)
+summary(ga.20)
 
+
+
+sc.AIC = AIC(ga.11, ga.22, ga.12, ga.33, ga.20)
+sc.AIC
 
 
 #Theoretically seasonality should not be present in a financial time series as it would mean an arbritrage edge.
@@ -62,7 +67,7 @@ plot.ts(Normal_Series_Diffed.log)
 # Residuals analysis 
 residual.analysis(ga.11, class="GARCH", start=2)
 
-??residuals.analysis
+
 #ACF,PACF
 acf(log_model) #old
 acf(Normal_Series_Diffed.log)
@@ -134,3 +139,33 @@ acf.squared101=acf(squared.res.arima511,main='ACF Squared
                    Residuals',lag.max=100,ylim=c(-0.5,1))
 pacf.squared101=pacf(squared.res.arima511,main='PACF Squared
                      Residuals',lag.max=100,ylim=c(-0.5,1))
+
+# Residuals analysis
+residual.analysis <- function(model, std = TRUE,start = 2, class = c("ARIMA","GARCH","ARMA-GARCH")[1]){
+  if (class == "ARIMA"){
+    if (std == TRUE){
+      res.model = rstandard(model)
+    }else{
+      res.model = residuals(model)
+    }
+  }else if (class == "GARCH"){
+    res.model = model$residuals[start:model$n.used]
+  }else if (class == "ARMA-GARCH"){
+    res.model = model@fit$residuals
+  }else {
+    stop("The argument 'class' must be either 'ARIMA' or 'GARCH' ")
+  }
+  res.model = na.remove(res.model)
+  par(mfrow=c(3,2))
+  plot(res.model,type='o',ylab='Standardised residuals', main="Time series plot of standardised residuals")
+  abline(h=0)
+  hist(res.model,main="Histogram of standardised residuals")
+  acf(res.model,main="ACF of standardised residuals")
+  pacf(res.model,main="PACF of standardised residuals")
+  qqnorm(res.model,main="QQ plot of standardised residuals")
+  qqline(res.model, col = 2)
+  print(shapiro.test(res.model))
+  k=0
+  LBQPlot(res.model, lag.max = 30, StartLag = k + 1, k = 0, SquaredQ = FALSE)
+}
+  
