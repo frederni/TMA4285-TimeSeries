@@ -1,8 +1,11 @@
 # Project part 2
 install.packages("rugarch")
+install.packages('Rcpp')
+
 
 library(rugarch)
 library(readxl)
+library(Rcpp)
 
 # Preprocessing and data cleaning
 data = read_excel('CBLTCUSD_updated.xls')
@@ -13,6 +16,8 @@ plot(data)
 log.stocks <- log(stocks)
 diff.log.stocks <- diff(log.stocks)
 
+
+# Helper functions
 
 # Naive/Brute force p and q selection
 naive_selection <- function(data, pqmax, distrmod){
@@ -68,19 +73,34 @@ naive_selection <- function(data, pqmax, distrmod){
 
 best_choice_std <- naive_selection(stocks, 4, "std")
 
+# Backtransform log-diff ts
+init = stocks[1]
+difflogdata = diff.log.stocks
+backtransform <- function(x, difflogdata, init){
+    n <- length(difflogdata)
+    ts.all <- c(difflogdata,x)
+    cs <- cumsum(ts.all)
+    newts <- exp(cs[(n+1):length(ts.all)])*init
+    return(newts)
+}
+
+
+# >>>>> Model 0 : sGARCH
+# <<<<< Model 0 : sGARCH
 
 # >>>>> Model 1 : T-GARCH
 
+# Function above shows (p,q)=(1,1) to be best fit
 model1.notrans <- ugarchfit(
     spec=ugarchspec(
         variance.model = list(garchOrder=c(1,1)),
-        #mean.model = list(armaOrder=c(0,1), include.mean = FALSE),
         distribution.model = "std"
     ),
     data=stocks
 )
+plot(model1.notrans, which="all")
 
-pred1.notrans <- ugarchforecast(model1.notrans, n.ahead = 20)
+pred1.notrans <- ugarchforecast(model1.notrans, n.ahead = 27)
 plot(pred1.notrans, which=1)
 
 model1.logdiff <- ugarchfit(
@@ -93,54 +113,39 @@ model1.logdiff <- ugarchfit(
 )
 
 plot(model1.logdiff, which="all")
-pred1.logdiff <- ugarchforecast(model1.logdiff, n.ahead = 20)
-plot(pred1.logdiff)
-# <<<<< Model 1 : T-GARCH
 
 
-
-# ______ Using normal distribution model
-
-model2.spec <- ugarchspec(
-    variance.model = list(model = "gjrGARCH"),
-    mean.model = list(armaOrder = c(0,1), include.mean = TRUE),
-    distribution.model = "norm"
-)
-model2 = ugarchfit(spec=model2.spec, data=stocks)
-pred2 = ugarchforecast(model2, n.ahead = 20)
-plot(pred2)
-
-# >>>>> BEGIN   log transforms, differencing and bootstrapping
-log.stocks <- log(stocks)
-diff.log.stocks <- diff(log.stocks)
-
-# Backtransform
-init = stocks[1]
-difflogdata = diff.log.stocks
-backtransform <- function(x, difflogdata=NULL, init=NULL){
-    if(is.null(init)){
-        print("Error: Initial value of the original time series is needed")
-        }
-    if(is.null(difflogdata)){
-        print("The transformed time series is required")
-        }
-    n <- length(difflogdata)
-    ts.all <- c(difflogdata,x)
-    cs <- cumsum(ts.all)
-    newts <- exp(cs[(n+1):length(ts.all)])*init
-    return(newts)
-}
-
-model1.logdiff.forecast <- ugarchboot(transf.model1, n.ahead=20,
-                                     method="Partial", n.bootpred =500)
-model1.logdiff.foreacast <- t(
-    apply(transf.model1.forecast @ fseries,
+# Predict and backtrack and stuff
+model1.logdiff.forecast <- ugarchboot(model1.logdiff, n.ahead=27,
+                                      method="Partial", n.bootpred =500)
+model1.logdiff.forecast <- t(
+    apply(model1.logdiff.forecast @ fseries,
           1,
           backtransform,
           difflogdata=difflogdata,
           init=init)
-    )
-# <<<<< END     log transforms, differencing and bootstrapping
+)
+
+## Model 2 ##
+n <- length(stocks)
+plot(1:n,stocks[1:n],type="l",xlim=c(0,n+20),ylim=c(0,400))
+for(i in 1:nrow(model1.logdiff.forecast)){
+    lines(seq(n+1,n+20),model1.logdiff.forecast[i,],col="lightgrey")
+}
+lines(seq(n+1,n+20),apply(model1.logdiff.forecast, 2, mean),col="red")
+lines(seq(n+1,n+20),apply(model1.logdiff.forecast, 2, quantile,probs=0.025),col="blue")
+lines(seq(n+1,n+20),apply(model1.logdiff.forecast, 2, quantile,probs=0.975),col="blue")
+lines(seq(n,n+20),trueobs,col="darkgreen")
+
+# TODO
+# * Change x axis to be correct dates
+# * Import trueobs
+# * Fix package issue with Rcpp
+
+
+# <<<<< Model 1 : T-GARCH
+
+
 
 
 # >>>>> BEGIN   dump of unused code
