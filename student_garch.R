@@ -1,7 +1,6 @@
 # Project part 2
 install.packages("rugarch")
-install.packages('Rcpp')
-
+install.packages('Rcpp') # Necessary for bootstrapping
 
 library(rugarch)
 library(readxl)
@@ -15,6 +14,10 @@ plot(data)
 
 log.stocks <- log(stocks)
 diff.log.stocks <- diff(log.stocks)
+
+# Testing observations
+trueobs_data <- read_excel('CBLTCUSD_update_2.xls')
+trueobs <- trueobs_data$CBLTCUSD
 
 
 # Helper functions
@@ -84,8 +87,65 @@ backtransform <- function(x, difflogdata, init){
     return(newts)
 }
 
+# Plot forecasted values
+plot_forecast <- function(data, trueobs, n.ahead, ylim, forecasted_model, modeltxt){
+    # Generalized plotter function to plot all forecasts similarly
+    # data = time series used in modeling
+    # trueobs = testing data not used in modeling
+    # n.ahead = number of time steps forecasted for
+    # forecasted_model = Bootrap-forecasted and backtransformed data
+    # modeltxt = string representation of model used
+    
+    # Plot forecast of backtransformed data
+    n <- length(data)
+    plot(1:n,stocks[1:n],type="l",xlim=c(as.integer(n/1.25),n+n.ahead),ylim=c(0,ylim),
+         main= paste("Forecasting Litecoin using", modeltxt, "model"))
+    for(i in 1:nrow(model1.logdiff.forecast)){
+        lines(seq(n+1,n+n.ahead),model1.logdiff.forecast[i,],col="lightgrey")
+    }
+    lines(seq(n+1,n+n.ahead),apply(model1.logdiff.forecast, 2, mean),col="red")
+    lines(seq(n+1,n+n.ahead),apply(model1.logdiff.forecast, 2, quantile,probs=0.025),col="blue")
+    lines(seq(n+1,n+n.ahead),apply(model1.logdiff.forecast, 2, quantile,probs=0.975),col="blue")
+    lines(seq(n+1,n+n.ahead), trueobs,col="darkgreen")
+    legend("topleft", legend=c(
+        "Previous stock value",
+        "Mean forecast",
+        "97.5% confidence interval",
+        "Actual observation"),
+        col=c("black", "red", "blue", "darkgreen"),
+        lty=1, cex=1.05)
+}
 
 # >>>>> Model 0 : sGARCH
+best_choice_std <- naive_selection(stocks, 10, "norm")
+# Go with the BIC optimal value, (1,1)
+model0.logdiff <- ugarchfit(
+    spec=ugarchspec(
+        variance.model = list(garchOrder=c(1,1)),
+        mean.model = list(armaOrder=c(0,1)),
+        distribution.model = "norm"
+    ),
+    data=diff.log.stocks
+)
+
+
+for(plotNo in 8:11){
+    plot(model0.logdiff, which=plotNo)
+}
+
+model0.logdiff.forecast <- ugarchboot(model1.logdiff, n.ahead=27,
+                                      method="Partial", n.bootpred =500)
+model0.logdiff.forecast <- t(
+    apply(model0.logdiff.forecast @ fseries,
+          1,
+          backtransform,
+          difflogdata=difflogdata,
+          init=init)
+)
+plot_forecast(data=stocks, trueobs=trueobs, n.ahead=27, ylim=400,
+              forecasted_model = model0.logdiff.forecast, modeltxt="sGARCH(1,1)")
+
+
 # <<<<< Model 0 : sGARCH
 
 # >>>>> Model 1 : T-GARCH
@@ -112,10 +172,14 @@ model1.logdiff <- ugarchfit(
     data=diff.log.stocks
 )
 
-plot(model1.logdiff, which="all")
+# Plots indicating general model fit
+for(plotNo in 8:11){
+    plot(model1.logdiff, which=plotNo)
+}
+# Save density of residuals + the two ACF functions
 
 
-# Predict and backtrack and stuff
+# Predict and and backtransform
 model1.logdiff.forecast <- ugarchboot(model1.logdiff, n.ahead=27,
                                       method="Partial", n.bootpred =500)
 model1.logdiff.forecast <- t(
@@ -126,37 +190,8 @@ model1.logdiff.forecast <- t(
           init=init)
 )
 
-## Model 2 ##
-n <- length(stocks)
-plot(1:n,stocks[1:n],type="l",xlim=c(0,n+20),ylim=c(0,400))
-for(i in 1:nrow(model1.logdiff.forecast)){
-    lines(seq(n+1,n+20),model1.logdiff.forecast[i,],col="lightgrey")
-}
-lines(seq(n+1,n+20),apply(model1.logdiff.forecast, 2, mean),col="red")
-lines(seq(n+1,n+20),apply(model1.logdiff.forecast, 2, quantile,probs=0.025),col="blue")
-lines(seq(n+1,n+20),apply(model1.logdiff.forecast, 2, quantile,probs=0.975),col="blue")
-lines(seq(n,n+20),trueobs,col="darkgreen")
-
-# TODO
-# * Change x axis to be correct dates
-# * Import trueobs
-# * Fix package issue with Rcpp
-
+plot_forecast(data=stocks, trueobs=trueobs, n.ahead=27, ylim=400,
+              forecasted_model=model1.logdiff.forecast, modeltxt="TGARCH(1,1)")
 
 # <<<<< Model 1 : T-GARCH
-
-
-
-
-# >>>>> BEGIN   dump of unused code
-tmp_model_gjrGARCH = ugarchfit(
-    spec=ugarchspec(
-        variance.model = list(model = "gjrGARCH"),
-        mean.model = list(armaOrder = c(p, q), include.mean = TRUE),
-        distribution.model = "std"
-    ),
-    data=stocks,
-)
-
-# <<<<< END     dump of unused code
 
