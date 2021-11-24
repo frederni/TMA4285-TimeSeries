@@ -136,6 +136,21 @@ plot_forecast <- function(data, trueobs, n.ahead, ylim, forecasted_model, modelt
         lty=1, cex=1.05)
 }
 
+numeric_quantile <- function(n.ahead, forecasted_model){
+    # Helper to get numeric values of confidance interval to the n.ahead-th prediction
+    all_lower <- apply(forecasted_model, 2, quantile,probs=0.025)
+    all_upper <- apply(forecasted_model, 2, quantile,probs=0.975)
+    conf_interval <- c(all_lower[n.ahead], all_upper[n.ahead], abs(all_lower[n.ahead]-all_upper[n.ahead]))
+    return(conf_interval)
+}
+mean_error <- function(forecasted_model, trueobs){
+    # Helper to get mean absolute error between mean forecast and true observations
+    mean_preds <- apply(forecasted_model, 2, mean) # goes from [len(dataset), len(dataset) + n.ahead]
+    err <- abs(mean_preds - trueobs)
+    return(mean(err))
+}
+
+
 # >>>>> Model 0 : sGARCH
 best_choice_norm <- naive_selection(diff.log.stocks, 10, "norm")
 # Fit with the p and q found from function above
@@ -155,7 +170,7 @@ for(plotNo in 8:11){
 }
 
 model0.logdiff.forecast <- ugarchboot(model0.logdiff, n.ahead=27,
-                                      method="Partial", n.bootpred =500)
+                                      method="Partial", n.bootpred =10000)
 model0.logdiff.forecast <- t(
     apply(model0.logdiff.forecast @ fseries,
           1,
@@ -192,7 +207,7 @@ for(plotNo in 8:11){
 
 # Predict and and backtransform
 model1.logdiff.forecast <- ugarchboot(model1.logdiff, n.ahead=27,
-                                      method="Partial", n.bootpred =500)
+                                      method="Partial", n.bootpred =10000)
 model1.logdiff.forecast <- t(
     apply(model1.logdiff.forecast @ fseries,
           1,
@@ -200,6 +215,8 @@ model1.logdiff.forecast <- t(
           difflogdata=difflogdata,
           init=init)
 )
+# Test
+
 
 plot_forecast(data=stocks, trueobs=trueobs, n.ahead=27, ylim=400,
               forecasted_model=model1.logdiff.forecast, modeltxt=paste(
