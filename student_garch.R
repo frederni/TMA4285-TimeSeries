@@ -24,6 +24,12 @@ trueobs <- trueobs_data$CBLTCUSD
 
 # Naive/Brute force p and q selection
 naive_selection <- function(data, pqmax, distrmod){
+    # Helper to select p and q based on lowest AIC/BIC
+    # :param data:      should be stocks or the log-diff transformed stock data
+    # :param pqmax:     range of combinations to examine, e.g. pqmax=3 will check
+    #                   every combination between (0,0) and (3,3)
+    # :param distrmod:  Distribution model, e.g. "std" or "norm"
+    # :return:          Array of lowest AIC/BIC (p and q printed to console)
     info.res <- vector(mode="list", length=4)
     names(info.res) <- c("p", "q", "aic", "bic")
     pb_iter <- (pqmax+1)^2 # Number of iterations
@@ -62,19 +68,33 @@ naive_selection <- function(data, pqmax, distrmod){
         }
     }
     print("Completed naive p, q test")
+    info.optimal <- vector(mode="list", length=4)
+    names(info.optimal) <- c("aic_val", "bic_val", "aic_param", "bic_param")
+    
     best_aic_index = match(min(info.res$aic), info.res$aic)
     best_bic_index = match(min(info.res$bic), info.res$bic)
     
-    best_aic <- c(info.res$p[best_aic_index], info.res$q[best_aic_index])
-    best_bic <- c(info.res$p[best_bic_index], info.res$q[best_bic_index])
-    cat("Best AIC for (p,q) = (", info.res$p[best_aic_index],
-        ",", info.res$q[best_aic_index], ")", sep="")
-    cat("Best BIC for (p,q) = (", info.res$p[best_bic_index], 
-        ",", info.res$q[best_bic_index], ")", sep="")
-    return(c(best_aic, best_bic))
+    info.optimal$aic_val <- append(info.optimal$aic_val, min(info.res$aic))
+    info.optimal$bic_val <- append(info.optimal$bic_val, min(info.res$bic))
+    
+    info.optimal$aic_param <- append(
+        info.optimal$aic_param, 
+        c(info.res$p[best_aic_index], info.res$q[best_aic_index])
+        )
+    info.optimal$bic_param <- append(
+        info.optimal$bic_param,
+        c(info.res$p[best_bic_index], info.res$q[best_bic_index])
+        )
+    
+    cat("Best AIC for (p,q) = (", info.optimal$aic_param[1],
+        ",", info.optimal$aic_param[2], ")", sep="")
+    cat("Best BIC for (p,q) = (", info.optimal$bic_param[1], 
+        ",", info.optimal$bic_param[2], ")", sep="")
+    return(info.optimal)
 }
 
-best_choice_std <- naive_selection(stocks, 4, "std")
+best_choice_std <- naive_selection(diff.log.stocks, 4, "std")
+best_choice_norm <- naive_selection(diff.log.stocks, 4, "norm")
 
 # Backtransform log-diff ts
 init = stocks[1]
@@ -117,11 +137,11 @@ plot_forecast <- function(data, trueobs, n.ahead, ylim, forecasted_model, modelt
 }
 
 # >>>>> Model 0 : sGARCH
-best_choice_std <- naive_selection(stocks, 10, "norm")
-# Go with the BIC optimal value, (1,1)
+best_choice_norm <- naive_selection(diff.log.stocks, 10, "norm")
+
 model0.logdiff <- ugarchfit(
     spec=ugarchspec(
-        variance.model = list(garchOrder=c(1,1)),
+        variance.model = list(garchOrder=best_choice_norm$aic_param),
         mean.model = list(armaOrder=c(0,1)),
         distribution.model = "norm"
     ),
@@ -153,7 +173,7 @@ plot_forecast(data=stocks, trueobs=trueobs, n.ahead=27, ylim=400,
 # Function above shows (p,q)=(1,1) to be best fit
 model1.notrans <- ugarchfit(
     spec=ugarchspec(
-        variance.model = list(garchOrder=c(1,1)),
+        variance.model = list(garchOrder=c(3,1)),
         distribution.model = "std"
     ),
     data=stocks
@@ -165,7 +185,7 @@ plot(pred1.notrans, which=1)
 
 model1.logdiff <- ugarchfit(
     spec=ugarchspec(
-        variance.model = list(garchOrder=c(1,1)),
+        variance.model = list(garchOrder=c(3,1)),
         #mean.model = list(armaOrder=c(0,1), include.mean = FALSE),
         distribution.model = "std"
     ),
@@ -176,6 +196,7 @@ model1.logdiff <- ugarchfit(
 for(plotNo in 8:11){
     plot(model1.logdiff, which=plotNo)
 }
+plot(model0.logdiff, which=12)
 # Save density of residuals + the two ACF functions
 
 
@@ -191,7 +212,7 @@ model1.logdiff.forecast <- t(
 )
 
 plot_forecast(data=stocks, trueobs=trueobs, n.ahead=27, ylim=400,
-              forecasted_model=model1.logdiff.forecast, modeltxt="TGARCH(1,1)")
+              forecasted_model=model1.logdiff.forecast, modeltxt="TGARCH(3,1)")
 
 # <<<<< Model 1 : T-GARCH
 
