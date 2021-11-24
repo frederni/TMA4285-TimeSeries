@@ -120,12 +120,12 @@ plot_forecast <- function(data, trueobs, n.ahead, ylim, forecasted_model, modelt
     n <- length(data)
     plot(1:n,stocks[1:n],type="l",xlim=c(as.integer(n/1.25),n+n.ahead),ylim=c(0,ylim),
          main= paste("Forecasting Litecoin using", modeltxt, "model"))
-    for(i in 1:nrow(model1.logdiff.forecast)){
-        lines(seq(n+1,n+n.ahead),model1.logdiff.forecast[i,],col="lightgrey")
+    for(i in 1:nrow(forecasted_model)){
+        lines(seq(n+1,n+n.ahead),forecasted_model[i,],col="lightgrey")
     }
-    lines(seq(n+1,n+n.ahead),apply(model1.logdiff.forecast, 2, mean),col="red")
-    lines(seq(n+1,n+n.ahead),apply(model1.logdiff.forecast, 2, quantile,probs=0.025),col="blue")
-    lines(seq(n+1,n+n.ahead),apply(model1.logdiff.forecast, 2, quantile,probs=0.975),col="blue")
+    lines(seq(n+1,n+n.ahead),apply(forecasted_model, 2, mean),col="red")
+    lines(seq(n+1,n+n.ahead),apply(forecasted_model, 2, quantile,probs=0.025),col="blue")
+    lines(seq(n+1,n+n.ahead),apply(forecasted_model, 2, quantile,probs=0.975),col="blue")
     lines(seq(n+1,n+n.ahead), trueobs,col="darkgreen")
     legend("topleft", legend=c(
         "Previous stock value",
@@ -138,7 +138,8 @@ plot_forecast <- function(data, trueobs, n.ahead, ylim, forecasted_model, modelt
 
 # >>>>> Model 0 : sGARCH
 best_choice_norm <- naive_selection(diff.log.stocks, 10, "norm")
-
+# Fit with the p and q found from function above
+# Use AIC parameters since they produce best forecast results
 model0.logdiff <- ugarchfit(
     spec=ugarchspec(
         variance.model = list(garchOrder=best_choice_norm$aic_param),
@@ -153,7 +154,7 @@ for(plotNo in 8:11){
     plot(model0.logdiff, which=plotNo)
 }
 
-model0.logdiff.forecast <- ugarchboot(model1.logdiff, n.ahead=27,
+model0.logdiff.forecast <- ugarchboot(model0.logdiff, n.ahead=27,
                                       method="Partial", n.bootpred =500)
 model0.logdiff.forecast <- t(
     apply(model0.logdiff.forecast @ fseries,
@@ -163,7 +164,11 @@ model0.logdiff.forecast <- t(
           init=init)
 )
 plot_forecast(data=stocks, trueobs=trueobs, n.ahead=27, ylim=400,
-              forecasted_model = model0.logdiff.forecast, modeltxt="sGARCH(1,1)")
+              forecasted_model = model0.logdiff.forecast, modeltxt=paste(
+                  "sGARCH(", best_choice_norm$aic_param[1], ", ",
+                  best_choice_norm$aic_param[2], ")", sep=""
+                  )
+              )
 
 
 # <<<<< Model 0 : sGARCH
@@ -171,22 +176,9 @@ plot_forecast(data=stocks, trueobs=trueobs, n.ahead=27, ylim=400,
 # >>>>> Model 1 : T-GARCH
 
 # Function above shows (p,q)=(1,1) to be best fit
-model1.notrans <- ugarchfit(
-    spec=ugarchspec(
-        variance.model = list(garchOrder=c(3,1)),
-        distribution.model = "std"
-    ),
-    data=stocks
-)
-plot(model1.notrans, which="all")
-
-pred1.notrans <- ugarchforecast(model1.notrans, n.ahead = 27)
-plot(pred1.notrans, which=1)
-
 model1.logdiff <- ugarchfit(
     spec=ugarchspec(
-        variance.model = list(garchOrder=c(3,1)),
-        #mean.model = list(armaOrder=c(0,1), include.mean = FALSE),
+        variance.model = list(garchOrder=best_choice_std$aic_param),
         distribution.model = "std"
     ),
     data=diff.log.stocks
@@ -196,8 +188,6 @@ model1.logdiff <- ugarchfit(
 for(plotNo in 8:11){
     plot(model1.logdiff, which=plotNo)
 }
-plot(model0.logdiff, which=12)
-# Save density of residuals + the two ACF functions
 
 
 # Predict and and backtransform
@@ -212,7 +202,25 @@ model1.logdiff.forecast <- t(
 )
 
 plot_forecast(data=stocks, trueobs=trueobs, n.ahead=27, ylim=400,
-              forecasted_model=model1.logdiff.forecast, modeltxt="TGARCH(3,1)")
+              forecasted_model=model1.logdiff.forecast, modeltxt=paste(
+                  "TGARCH(", best_choice_std$aic_param[1], ", ",
+                  best_choice_std$aic_param[2], ")", sep="")
+              )
 
 # <<<<< Model 1 : T-GARCH
 
+
+# >>>> UNUSED CODE
+model1.notrans <- ugarchfit(
+    spec=ugarchspec(
+        variance.model = list(garchOrder=c(3,1)),
+        distribution.model = "std"
+    ),
+    data=stocks
+)
+plot(model1.notrans, which="all")
+
+pred1.notrans <- ugarchforecast(model1.notrans, n.ahead = 27)
+plot(pred1.notrans, which=1)
+
+# <<<<< UNUSED CODE
