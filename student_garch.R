@@ -170,7 +170,7 @@ for(plotNo in 8:11){
 }
 
 model0.logdiff.forecast <- ugarchboot(model0.logdiff, n.ahead=27,
-                                      method="Partial", n.bootpred =10000)
+                                      method="Partial", n.bootpred =500)
 model0.logdiff.forecast <- t(
     apply(model0.logdiff.forecast @ fseries,
           1,
@@ -207,7 +207,7 @@ for(plotNo in 8:11){
 
 # Predict and and backtransform
 model1.logdiff.forecast <- ugarchboot(model1.logdiff, n.ahead=27,
-                                      method="Partial", n.bootpred =10000)
+                                      method="Partial", n.bootpred =500)
 model1.logdiff.forecast <- t(
     apply(model1.logdiff.forecast @ fseries,
           1,
@@ -215,7 +215,6 @@ model1.logdiff.forecast <- t(
           difflogdata=difflogdata,
           init=init)
 )
-# Test
 
 
 plot_forecast(data=stocks, trueobs=trueobs, n.ahead=27, ylim=400,
