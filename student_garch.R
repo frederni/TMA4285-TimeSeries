@@ -94,7 +94,7 @@ naive_selection <- function(data, pqmax, distrmod){
 }
 
 best_choice_std <- naive_selection(diff.log.stocks, 4, "std")
-best_choice_norm <- naive_selection(diff.log.stocks, 4, "norm")
+best_choice_norm <- naive_selection(diff.log.stocks, 10, "norm")
 
 # Backtransform log-diff ts
 init = stocks[1]
@@ -135,6 +135,29 @@ plot_forecast <- function(data, trueobs, n.ahead, ylim, forecasted_model, modelt
         col=c("black", "red", "blue", "darkgreen"),
         lty=1, cex=1.05)
 }
+
+plot_forecast_minimized <- function(data, trueobs, n.ahead, ylim, forecasted_model, modeltxt){
+    # Generalized plotter function to plot all forecasts similarly
+    # data = time series used in modeling
+    # trueobs = testing data not used in modeling
+    # n.ahead = number of time steps forecasted for
+    # forecasted_model = Bootrap-forecasted and backtransformed data
+    # modeltxt = string representation of model used
+    
+    # Plot forecast of backtransformed data
+    n <- length(data)
+    plot(n+1, 200, xlim=c(n+1,n+n.ahead),ylim=c(100,ylim),
+         xlab="Timeframe", ylab="Value",
+         main= paste("Forecast, ", modeltxt, "model"))
+    for(i in 1:nrow(forecasted_model)){
+        lines(seq(n+1,n+n.ahead),forecasted_model[i,],col="lightgrey")
+    }
+    lines(seq(n+1,n+n.ahead),apply(forecasted_model, 2, mean),col="red")
+    lines(seq(n+1,n+n.ahead),apply(forecasted_model, 2, quantile,probs=0.025),col="blue")
+    lines(seq(n+1,n+n.ahead),apply(forecasted_model, 2, quantile,probs=0.975),col="blue")
+    lines(seq(n+1,n+n.ahead), trueobs,col="darkgreen")
+}
+
 
 numeric_quantile <- function(n.ahead, forecasted_model){
     # Helper to get numeric values of confidance interval to the n.ahead-th prediction
@@ -217,7 +240,7 @@ model1.logdiff.forecast <- t(
 )
 
 
-plot_forecast(data=stocks, trueobs=trueobs, n.ahead=27, ylim=400,
+plot_forecast_minimized(data=stocks, trueobs=trueobs, n.ahead=27, ylim=400,
               forecasted_model=model1.logdiff.forecast, modeltxt=paste(
                   "TGARCH(", best_choice_std$aic_param[1], ", ",
                   best_choice_std$aic_param[2], ")", sep="")
